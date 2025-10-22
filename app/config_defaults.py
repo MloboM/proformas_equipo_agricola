@@ -76,15 +76,34 @@ CONFIG_CATEGORIES = {
 def init_default_config(db):
     """
     Inicializa la configuración por defecto si no existe
+    NOTA: Se importan las funciones aquí para evitar importación circular
     """
-    from app.crud import get_config, set_config
+    # Importación local para evitar circularidad
+    from sqlalchemy import select
+    from app.models import Configuration
+    from datetime import datetime
     
     for key, default_value in DEFAULT_CONFIG.items():
-        current = get_config(db, key)
-        if not current:
+        # Verificar si existe
+        config = db.scalars(
+            select(Configuration).where(Configuration.key == key)
+        ).first()
+        
+        if not config:
+            # Crear nueva configuración
             category = CONFIG_CATEGORIES.get(key, "general")
             description = CONFIG_DESCRIPTIONS.get(key, "")
-            set_config(db, key, default_value, category, description)
+            
+            new_config = Configuration(
+                key=key,
+                value=default_value,
+                category=category,
+                description=description
+            )
+            db.add(new_config)
+    
+    # Commitear todos los cambios al final
+    db.commit()
 
 
 def validate_char_limit(key: str, value: str) -> tuple[bool, str]:

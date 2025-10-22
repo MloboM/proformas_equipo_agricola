@@ -1,5 +1,5 @@
 """
-Operaciones CRUD completas para AgriQuote v2
+Operaciones CRUD completas para AgriQuote v2 - Con soporte para IVA personalizable
 """
 from typing import List, Optional, Dict
 from sqlalchemy.orm import Session
@@ -440,7 +440,7 @@ def create_proforma(
     custom_fiscal_note: str = "",
     notes: str = ""
 ) -> Proforma:
-    """Crea una nueva proforma con sus items"""
+    """Crea una nueva proforma con sus items (con IVA personalizable)"""
     
     # Crear la proforma
     proforma = Proforma(
@@ -459,7 +459,7 @@ def create_proforma(
     db.add(proforma)
     db.flush()
     
-    # Crear los items
+    # Crear los items con IVA personalizable
     currencies = set()
     for item_data in items_data:
         item = ProformaItem(
@@ -473,7 +473,9 @@ def create_proforma(
             qty=item_data["qty"],
             unit_price=item_data["unit_price"],
             discount_percent=item_data.get("discount_percent", 0.0),
-            currency=item_data["currency"]
+            currency=item_data["currency"],
+            # IVA personalizable - usar el valor proporcionado o 13% por defecto
+            tax_rate=item_data.get("tax_rate", 13.0)
         )
         item.calculate_totals()
         currencies.add(item_data["currency"])
@@ -505,13 +507,32 @@ def delete_proforma(db: Session, proforma_id: int) -> bool:
 
 def get_stats(db: Session) -> Dict:
     """Obtiene estadísticas generales"""
-    return {
-        "total_customers": db.scalar(select(func.count(Customer.id))),
-        "active_customers": db.scalar(
+    try:
+        total_customers = db.scalar(select(func.count(Customer.id))) or 0
+        active_customers = db.scalar(
             select(func.count(Customer.id)).where(Customer.active == True)
-        ),
-        "total_advisors": db.scalar(select(func.count(Advisor.id))),
-        "total_brands": db.scalar(select(func.count(Brand.id))),
-        "total_models": db.scalar(select(func.count(Model.id))),
-        "total_proformas": db.scalar(select(func.count(Proforma.id))),
-    }
+        ) or 0
+        total_advisors = db.scalar(select(func.count(Advisor.id))) or 0
+        total_brands = db.scalar(select(func.count(Brand.id))) or 0
+        total_models = db.scalar(select(func.count(Model.id))) or 0
+        total_proformas = db.scalar(select(func.count(Proforma.id))) or 0
+        
+        return {
+            "total_customers": total_customers,
+            "active_customers": active_customers,
+            "total_advisors": total_advisors,
+            "total_brands": total_brands,
+            "total_models": total_models,
+            "total_proformas": total_proformas,
+        }
+    except Exception as e:
+        # Si hay algún error, retornar valores por defecto
+        print(f"Error en get_stats: {e}")
+        return {
+            "total_customers": 0,
+            "active_customers": 0,
+            "total_advisors": 0,
+            "total_brands": 0,
+            "total_models": 0,
+            "total_proformas": 0,
+        }
