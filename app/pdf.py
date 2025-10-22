@@ -172,6 +172,30 @@ def draw_header(c: canvas.Canvas, data: Dict, template: str):
     c.setLineWidth(1.5)
     c.line(MARGIN_LEFT, y_line, PAGE_W - MARGIN_RIGHT, y_line)
     
+    # Información de la empresa (lado izquierdo)
+    c.setFillColor(colors.black)
+    c.setFont(FONT_NORMAL, 8)
+
+    y_info_left = y_line - 15  # misma altura inicial que el bloque derecho
+    x_info_left = MARGIN_LEFT  # margen izquierdo de la página
+
+    # Línea 1: Nombre de la empresa
+    c.drawString(x_info_left, y_info_left, "Colono Agropecuario S. A.")
+    y_info_left -= 12
+
+    # Línea 2: Cédula jurídica
+    c.drawString(x_info_left, y_info_left, "Cédula Jurídica: 3 101 268981")
+    y_info_left -= 12
+
+    # Línea 3: Teléfono
+    c.drawString(x_info_left, y_info_left, "Teléfono: (506) 2799-6120")
+    y_info_left -= 12
+
+    # Línea 4: WhatsApp
+    c.drawString(x_info_left, y_info_left, "Whatsapp: (506) 7007-1200")
+    y_info_left -= 12
+
+    
     # Información de la empresa (lado derecho)
     c.setFillColor(colors.black)
     c.setFont(FONT_NORMAL, 8)
@@ -382,22 +406,26 @@ def draw_customer_section(c: canvas.Canvas, data: Dict, y_start: float):
     section_height = 35  # Reducido significativamente
     y_end = y_start - section_height
     
+    # --- Ajustes de padding y posición ---
+    top_padding = 6       # Espacio adicional arriba del texto
+    x_offset = -5         # Desplazamiento horizontal hacia la izquierda (puedes ajustar a gusto)
+    
     # Marco
-    c.setStrokeColor(COLOR_BORDER)
-    c.setLineWidth(1)
-    c.rect(MARGIN_LEFT, y_end, CONTENT_WIDTH, section_height)
+    #c.setStrokeColor(COLOR_BORDER)
+    #c.setLineWidth(1)
+    #c.rect(MARGIN_LEFT, y_end, CONTENT_WIDTH, section_height)
     
     # Título
     c.setFillColor(COLOR_PRIMARY)
     c.setFont(FONT_BOLD, 8.5)
-    c.drawString(MARGIN_LEFT + 8, y_start - 12, "CLIENTE:")
+    c.drawString(MARGIN_LEFT + 8 + x_offset, y_start - 12- top_padding, "CLIENTE:")
     
     # Datos en línea continua
     c.setFillColor(colors.black)
     c.setFont(FONT_NORMAL, 8)
     
-    x_pos = MARGIN_LEFT + 60
-    y_pos = y_start - 12
+    x_pos = MARGIN_LEFT + 60 + x_offset
+    y_pos = y_start - 12 - top_padding
     
     # Construir línea de información
     info_parts = []
@@ -485,7 +513,7 @@ def draw_product_content(c: canvas.Canvas, item: Dict, template: str, y_start: f
     for col_name, col_width in columns:
         if col_name in ("P. UNIT", "TOTAL"):
             # Alinear a la derecha los títulos de columnas de montos
-            c.drawRightString(x + col_width - 3, y_table_header - 12, col_name)
+            c.drawRightString(x + col_width - 10, y_table_header - 12, col_name)
         else:
             c.drawString(x + 3, y_table_header - 12, col_name)
         x += col_width
@@ -536,7 +564,7 @@ def draw_product_content(c: canvas.Canvas, item: Dict, template: str, y_start: f
     for (col_name, col_width), value in zip(columns, values):
         if col_name in ("P. UNIT", "TOTAL"):
             # ALINEACIÓN A LA DERECHA PARA MONTOS
-            c.drawRightString(x + col_width - 3, y_text, value)
+            c.drawRightString(x + col_width - 10, y_text, value)
         elif col_name in ("CANT.", "AÑO", "DESC%", "IVA%"):
             # Centrado para valores numéricos cortos
             c.drawCentredString(x + col_width / 2, y_text, value)
@@ -586,6 +614,8 @@ def draw_product_content(c: canvas.Canvas, item: Dict, template: str, y_start: f
     
     # Imagen - CENTRADA VERTICAL Y HORIZONTALMENTE
     image_margin = 10
+    top_padding = 15
+    
     image_x = split_x + image_margin
     image_y = y_specs_end + image_margin
     image_width = specs_image_width - (2 * image_margin)
@@ -602,7 +632,8 @@ def draw_product_content(c: canvas.Canvas, item: Dict, template: str, y_start: f
             scaled_h = img_h * scale
             
             centered_x = image_x + (image_width - scaled_w) / 2
-            centered_y = image_y + (image_height - scaled_h) / 2
+            centered_y = image_y + image_height - scaled_h - top_padding
+            #centered_y = image_y + (image_height - scaled_h) / 2
             
             c.drawImage(
                 img, centered_x, centered_y,
