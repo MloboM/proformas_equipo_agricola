@@ -1,5 +1,5 @@
 """
-Operaciones CRUD completas para AgriQuote v2 - Con soporte para IVA personalizable
+Operaciones CRUD completas para AgriQuote v2 - Con soporte para IVA personalizable y búsqueda avanzada
 """
 from typing import List, Optional, Dict
 from sqlalchemy.orm import Session
@@ -401,7 +401,7 @@ def list_proformas(
     customer_id: Optional[int] = None,
     template: Optional[str] = None
 ) -> List[Proforma]:
-    """Lista proformas con filtros"""
+    """Lista proformas con filtros básicos (SOLO para carga inicial)"""
     query = select(Proforma).order_by(Proforma.created_at.desc())
     
     if customer_id:
@@ -414,6 +414,67 @@ def list_proformas(
     return db.scalars(query).all()
 
 
+def search_proformas(
+    db: Session,
+    customer_search: Optional[str] = None,
+    model_search: Optional[str] = None,
+    proforma_number: Optional[str] = None,
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+    advisor_id: Optional[int] = None,
+    template: Optional[str] = None,
+    limit: int = 1000
+) -> List[Proforma]:
+    """Búsqueda avanzada de proformas con filtros múltiples incluyendo número de proforma"""
+    
+    # Construir query base
+    query = select(Proforma).join(Customer).order_by(Proforma.created_at.desc())
+    
+    # Filtro por número de proforma (búsqueda parcial)
+    if proforma_number:
+        query = query.where(Proforma.number.ilike(f"%{proforma_number}%"))
+    
+    # Filtro por cliente (nombre o empresa)
+    if customer_search:
+        customer_filter = or_(
+            Customer.name.ilike(f"%{customer_search}%"),
+            Customer.company.ilike(f"%{customer_search}%")
+        )
+        query = query.where(customer_filter)
+    
+    # Filtro por fechas
+    if date_from:
+        query = query.where(Proforma.date >= date_from)
+    if date_to:
+        # Agregar 23:59:59 al final del día para incluir todo el día
+        date_to_end = date_to.replace(hour=23, minute=59, second=59)
+        query = query.where(Proforma.date <= date_to_end)
+    
+    # Filtro por asesor
+    if advisor_id:
+        query = query.where(Proforma.advisor_id == advisor_id)
+    
+    # Filtro por tipo de template
+    if template:
+        query = query.where(Proforma.template == template)
+    
+    query = query.limit(limit)
+    proformas = db.scalars(query).all()
+    
+    # Filtro por modelo (requiere búsqueda en items)
+    if model_search and proformas:
+        filtered_proformas = []
+        for proforma in proformas:
+            for item in proforma.items:
+                if (model_search.lower() in item.model_name.lower() or 
+                    model_search.lower() in item.brand_name.lower()):
+                    filtered_proformas.append(proforma)
+                    break
+        return filtered_proformas
+    
+    return proformas
+
+
 def get_proforma(db: Session, proforma_id: int) -> Optional[Proforma]:
     """Obtiene una proforma por ID"""
     return db.get(Proforma, proforma_id)
@@ -424,6 +485,53 @@ def get_proforma_by_number(db: Session, number: str) -> Optional[Proforma]:
     return db.scalars(
         select(Proforma).where(Proforma.number == number)
     ).first()
+
+
+def duplicate_proforma(
+    db: Session,
+    original_id: int,
+    new_number: str,
+    new_date: Optional[datetime] = None
+) -> Optional[Proforma]:
+    """Duplica una proforma existente con nuevo número y fecha"""
+    original = db.get(Proforma, original_id)
+    if not original:
+        return None
+    
+    # Preparar datos de items manteniendo toda la información
+    items_data = []
+    for item in original.items:
+        items_data.append({
+            "model_id": item.model_id,
+            "brand_name": item.brand_name,
+            "model_name": item.model_name,
+            "year": item.year,
+            "description": item.description,
+            "image_path": item.image_path,
+            "qty": item.qty,
+            "unit_price": item.unit_price,
+            "discount_percent": item.discount_percent,
+            "currency": item.currency,
+            "tax_rate": item.tax_rate  # Mantener IVA personalizado
+        })
+    
+    # Crear nueva proforma con los mismos datos
+    new_proforma = create_proforma(
+        db,
+        number=new_number,
+        customer_id=original.customer_id,
+        template=original.template,
+        items_data=items_data,
+        advisor_id=original.advisor_id,
+        customer_attention=original.customer_attention,
+        validity_days=original.validity_days,
+        date=new_date or datetime.utcnow(),
+        custom_terms=original.custom_terms,
+        custom_fiscal_note=original.custom_fiscal_note,
+        notes=original.notes
+    )
+    
+    return new_proforma
 
 
 def create_proforma(
@@ -494,7 +602,7 @@ def create_proforma(
 
 
 def delete_proforma(db: Session, proforma_id: int) -> bool:
-    """Elimina una proforma"""
+    """Elimina una proforma y sus items asociados"""
     proforma = db.get(Proforma, proforma_id)
     if not proforma:
         return False
@@ -506,7 +614,7 @@ def delete_proforma(db: Session, proforma_id: int) -> bool:
 # ==================== ESTADÍSTICAS ====================
 
 def get_stats(db: Session) -> Dict:
-    """Obtiene estadísticas generales"""
+    """Obtiene estadísticas generales del sistema"""
     try:
         total_customers = db.scalar(select(func.count(Customer.id))) or 0
         active_customers = db.scalar(

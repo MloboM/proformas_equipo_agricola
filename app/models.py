@@ -1,5 +1,5 @@
 """
-Modelos de datos completos para AgriQuote v2 - Con IVA personalizable
+Modelos de datos completos para AgriQuote v2 - Con IVA personalizable y mejor manejo de errores
 """
 from datetime import datetime
 from sqlalchemy import (
@@ -192,7 +192,7 @@ class Proforma(Base):
         
         # IVA calculado individualmente por item con su tasa personalizada
         self.tax = sum(
-            round((item.line_subtotal - item.discount_amount) * (item.tax_rate / 100), 2)
+            round((item.line_subtotal - item.discount_amount) * ((item.tax_rate or 13.0) / 100), 2)
             for item in self.items
         )
         
@@ -245,9 +245,14 @@ class ProformaItem(Base):
         return f"<ProformaItem(id={self.id}, brand='{self.brand_name}', model='{self.model_name}', tax={self.tax_rate}%)>"
     
     def calculate_totals(self):
-        """Calcula los totales de la línea con IVA personalizable"""
+        """Calcula los totales de la línea con IVA personalizable y manejo seguro de None"""
         self.line_subtotal = self.qty * self.unit_price
         self.discount_amount = round(self.line_subtotal * (self.discount_percent / 100), 2)
         subtotal_after_discount = self.line_subtotal - self.discount_amount
+        
+        # Asegurar que tax_rate no sea None y tenga un valor por defecto
+        if self.tax_rate is None:
+            self.tax_rate = 13.0
+        
         self.line_tax = round(subtotal_after_discount * (self.tax_rate / 100), 2)
         self.line_total = subtotal_after_discount + self.line_tax
